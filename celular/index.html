@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d0f">
+<meta name="referrer" content="no-referrer">
+<title>VyraTube</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icone-256.png">
+<link rel="apple-touch-icon" href="icone-256.png">
+<!-- VyraTube no celular (25/10): acompanha o Piloto Automatico do PC e aperta
+     os mesmos botoes. Fala com o Supabase (servidor\08_celular.sql); o PC le
+     os comandos a cada poucos segundos. -->
+<style>
+  :root { --fundo: #0d0d0f; --cartao: #17171b; --borda: #2a2a31; --texto: #ececf1; --fraco: #9a9aa6; --laranja: #ff7a1a; --verde: #3ecf7a; --vermelho: #e04848; --amarelo: #f0c060; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--fundo); color: var(--texto); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding: env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom)); max-width: 680px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 0 10px; position: sticky; top: 0; background: var(--fundo); z-index: 2; }
+  header img { width: 32px; height: 32px; border-radius: 8px; }
+  header .t { flex: 1; min-width: 0; }
+  header b { font-size: 17px; }
+  .pc { font-size: 12px; color: var(--fraco); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bola { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: var(--fraco); vertical-align: 1px; }
+  .bola.on { background: var(--verde); }
+  .bola.off { background: var(--vermelho); }
+  .cartao { background: var(--cartao); border: 1px solid var(--borda); border-radius: 14px; padding: 14px; margin: 12px 0; }
+  h2 { font-size: 15px; margin: 0 0 8px; }
+  .dica { color: var(--fraco); font-size: 13px; }
+  .titulo-v { font-weight: 600; font-size: 16px; margin-bottom: 8px; overflow-wrap: anywhere; }
+  .barra { height: 8px; background: #26262c; border-radius: 6px; overflow: hidden; }
+  .barra i { display: block; height: 100%; background: var(--laranja); width: 0; transition: width .4s; }
+  .total { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .total .barra { flex: 1; }
+  .etiq { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 20px; border: 1px solid var(--borda); color: var(--fraco); }
+  .etiq.verde { color: var(--verde); border-color: rgba(62,207,122,.5); }
+  .etiq.laranja { color: var(--laranja); border-color: rgba(255,122,26,.5); }
+  .etiq.vermelho { color: var(--vermelho); border-color: rgba(224,72,72,.6); }
+  ol.etapas { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+  .etapa { border: 1px solid var(--borda); border-radius: 10px; padding: 8px 10px; }
+  .etapa .l1 { display: flex; align-items: center; gap: 8px; }
+  .etapa .nm { flex: 1; }
+  .etapa .inf { font-size: 12px; color: var(--fraco); margin-top: 2px; overflow-wrap: anywhere; }
+  .etapa .barra { margin-top: 6px; height: 5px; }
+  .etapa.ok { background: rgba(62,207,122,.14); border-color: rgba(62,207,122,.55); }
+  .etapa.erro { background: rgba(224,72,72,.14); border-color: rgba(224,72,72,.6); }
+  .etapa.fazendo { border-color: rgba(255,122,26,.6); }
+  .etapa.cancelada { border-color: #6a5a25; }
+  .etapa.cancelada .inf { color: var(--amarelo); }
+  .botoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  button { font: inherit; font-size: 14px; border-radius: 10px; border: 1px solid var(--borda); background: #222228; color: var(--texto); padding: 9px 14px; min-height: 40px; }
+  button.laranja { background: var(--laranja); border-color: var(--laranja); color: #111; font-weight: 600; }
+  button.vermelho { border-color: rgba(224,72,72,.7); color: #ff8a8a; }
+  button.peq { padding: 6px 11px; min-height: 34px; font-size: 13px; }
+  .l1 button.peq { padding: 4px 10px; min-height: 30px; font-size: 12px; background: transparent; }
+  button:disabled { opacity: .5; }
+  .precisa { background: rgba(240,192,96,.12); border-color: rgba(240,192,96,.6); }
+  .erro-g { color: #ff9a9a; font-size: 14px; margin: 8px 0; overflow-wrap: anywhere; }
+  ol.fila { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  ol.fila li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+  ol.fila .n { color: var(--fraco); min-width: 20px; }
+  ol.fila .tt { flex: 1; overflow-wrap: anywhere; }
+  .log { font: 12px/1.5 ui-monospace, Consolas, monospace; max-height: 260px; overflow: auto; color: var(--fraco); }
+  .log .err { color: #ff8a8a; } .log .ok { color: var(--verde); } .log .warn { color: var(--amarelo); }
+  #toast { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); background: #26262c; border: 1px solid var(--borda); border-radius: 12px; padding: 12px 14px; text-align: center; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 5; }
+  #toast.on { opacity: 1; }
+  .vazio { text-align: center; padding: 40px 10px; }
+  details summary { cursor: pointer; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <img src="icone-256.png" alt="">
+  <div class="t"><b>VyraTube</b><div class="pc" id="pc">conectando...</div></div>
+</header>
+
+<div id="semVinculo" class="cartao vazio" hidden>
+  <h2>Celular não vinculado</h2>
+  <p class="dica">No computador, abra o VyraTube → <b>Piloto Automático</b> → <b>📱 Acompanhar pelo celular</b> → <b>Mostrar QR code</b>, e aponte a câmera do celular para o QR code.</p>
+</div>
+
+<div id="tudo" hidden>
+  <div id="precisa" class="cartao precisa" hidden>
+    <h2>🙋 Precisa de você</h2>
+    <div id="precisaMotivo"></div>
+    <div class="dica" id="precisaFazer"></div>
+    <div class="botoes"><button class="laranja" data-acao="resolvi">✓ Ok, resolvi</button></div>
+  </div>
+
+  <div class="cartao" id="andamento">
+    <h2>⚙ Andamento <span class="etiq" id="estadoGeral"></span></h2>
+    <div class="titulo-v" id="titulo"></div>
+    <div class="total"><div class="barra"><i id="barraTotal"></i></div><b id="pctTotal">0%</b></div>
+    <div class="erro-g" id="erro" hidden></div>
+    <div class="botoes" id="botoesGerais"></div>
+    <ol class="etapas" id="etapas"></ol>
+  </div>
+
+  <div class="cartao" id="cartaoFila" hidden>
+    <h2>📋 Fila de títulos <span class="etiq" id="filaEstado"></span></h2>
+    <ol class="fila" id="fila"></ol>
+    <div class="botoes" id="botoesFila"></div>
+  </div>
+
+  <div class="cartao">
+    <details>
+      <summary>📝 O que aconteceu (registro)</summary>
+      <div class="log" id="log"></div>
+    </details>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  const SUPABASE = 'https://mqayahqjplirfqpjllbj.supabase.co';
+  // Chave publishable: publica de proposito (a mesma do programa); quem protege sao as funcoes do 08_celular.sql.
+  const CHAVE = 'sb_publishable_BK9scFs8j1LtZlx_kXzrFw_caYOPWKB';
+  const el = (id) => document.getElementById(id);
+  const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  // O vinculo vem no endereco do QR code (#v=...&k=...) e fica guardado no celular,
+  // porque o icone da tela inicial abre sem o "#".
+  let vinc = null;
+  try { vinc = JSON.parse(localStorage.getItem('vyra_celular') || 'null'); } catch (e) { /* sem */ }
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('v') && h.get('k')) {
+    vinc = { v: h.get('v'), k: h.get('k') };
+    try { localStorage.setItem('vyra_celular', JSON.stringify(vinc)); } catch (e) { /* sem */ }
+    history.replaceState(null, '', location.pathname);
+  }
+
+  async function rpc(nome, corpo) {
+    const r = await fetch(SUPABASE + '/rest/v1/rpc/' + nome, {
+      method: 'POST',
+      headers: { apikey: CHAVE, Authorization: 'Bearer ' + CHAVE, 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo)
+    });
+    const t = await r.text();
+    let j = null;
+    try { j = t ? JSON.parse(t) : null; } catch (e) { /* texto */ }
+    if (!r.ok) throw new Error((j && j.message) || ('HTTP ' + r.status));
+    return j;
+  }
+
+  let toastT = null;
+  function toast(t) {
+    el('toast').textContent = t;
+    el('toast').classList.add('on');
+    clearTimeout(toastT);
+    toastT = setTimeout(() => el('toast').classList.remove('on'), 3500);
+  }
+
+  let enviando = false;
+  async function mandar(acao, etapa, pergunta) {
+    if (pergunta && !confirm(pergunta)) return;
+    if (enviando) return;
+    enviando = true;
+    try {
+      const ok = await rpc('celular_comando', { p_id: vinc.v, p_seg_cel: vinc.k, p_acao: acao, p_etapa: etapa || '' });
+      toast(ok ? '✓ Enviado. O computador faz em alguns segundos.' : 'Este celular não está mais vinculado.');
+      setTimeout(ler, 2500);
+      setTimeout(ler, 6000);
+    } catch (e) { toast('Não deu para enviar: ' + e.message); }
+    finally { enviando = false; }
+  }
+
+  const PULAVEIS = ['musica', 'descricao', 'tags'];
+  const ESTADO_FILA = { '': ['Na fila', ''], fazendo: ['Fazendo', 'laranja'], pronto: ['✓ Pronto', 'verde'], erro: ['✗ Erro', 'vermelho'] };
+
+  function pintar(r) {
+    const e = r.estado || {};
+    const idade = r.estado_em ? (Date.parse(r.agora) - Date.parse(r.estado_em)) / 1000 : 9999;
+    const pcOn = idade < 90;
+    el('pc').innerHTML = '<span class="bola ' + (pcOn ? 'on' : 'off') + '"></span>' + esc(r.nome_pc || 'PC') +
+      (pcOn ? ' · ligado' : ' · sem notícias há ' + (idade < 3600 ? Math.round(idade / 60) + ' min' : 'mais de 1 h') + ' (desligado ou sem internet)');
+
+    el('precisa').hidden = !e.precisa;
+    if (e.precisa) { el('precisaMotivo').textContent = e.precisa.motivo; el('precisaFazer').textContent = e.precisa.fazer; }
+
+    const etapas = e.etapas || [];
+    el('andamento').hidden = !etapas.length;
+    el('titulo').textContent = e.titulo || '';
+    el('estadoGeral').textContent = e.rodando ? (e.pausar ? '⏸ vai pausar' : '⚙ trabalhando') : e.fim ? '✓ pronto' : etapas.length ? 'parado' : '';
+    el('estadoGeral').className = 'etiq ' + (e.rodando ? 'laranja' : e.fim ? 'verde' : e.erro ? 'vermelho' : '');
+    const feito = etapas.length ? etapas.reduce((s, x) => s + (x.estado === 'ok' || x.estado === 'pulada' ? 100 : x.estado === 'fazendo' ? (x.pct || 0) : 0), 0) / etapas.length : 0;
+    el('barraTotal').style.width = Math.round(feito) + '%';
+    el('pctTotal').textContent = Math.round(feito) + '%';
+    el('erro').hidden = !e.erro || e.rodando;
+    el('erro').textContent = e.erro || '';
+
+    const ger = [];
+    if (e.rodando) {
+      ger.push('<button data-acao="pausar">' + (e.pausar ? '▶ Não pausar' : '⏸ Pausar depois desta etapa') + '</button>');
+      ger.push('<button class="vermelho" data-acao="parar" data-pergunta="Parar o Piloto? A etapa que está rodando para no meio; depois dá para continuar.">■ Parar</button>');
+    } else if (!e.fim && etapas.some((x) => x.estado !== 'ok' && x.estado !== 'pulada')) {
+      ger.push('<button class="laranja" data-acao="continuar">↻ Continuar de onde parou</button>');
+    }
+    el('botoesGerais').innerHTML = ger.join('');
+
+    el('etapas').innerHTML = etapas.map((x) => {
+      const ic = { ok: '✓', erro: '✗', fazendo: '⚙', pulada: '–', cancelada: '⊘' }[x.estado] || '○';
+      const nome = esc(x.nome);
+      let bt = '';
+      if (x.estado === 'erro' && !e.rodando) {
+        bt += '<button class="laranja peq" data-acao="continuar">↻ Tentar de novo</button>';
+        if (PULAVEIS.includes(x.id)) bt += '<button class="peq" data-acao="pular" data-etapa="' + esc(x.id) + '" data-pergunta="Pular esta etapa e seguir sem ela?">Pular</button>';
+      }
+      if ((x.estado === 'ok' || x.estado === 'pulada') && !e.rodando)
+        bt += '<button class="peq" data-acao="refazer" data-etapa="' + esc(x.id) + '" data-pergunta="Refazer &quot;' + nome + '&quot;? Esta etapa e todas as que vêm depois dela serão feitas de novo.">↻ Refazer</button>';
+      if (x.estado === 'fazendo' && e.rodando)
+        bt += '<button class="peq" data-acao="cancelar" data-etapa="' + esc(x.id) + '" data-pergunta="Cancelar &quot;' + nome + '&quot;? O Piloto para. Depois aparece Refazer do zero.">✕ Cancelar</button>';
+      if (x.estado === 'cancelada' && !e.rodando)
+        bt += '<button class="laranja peq" data-acao="refazer" data-etapa="' + esc(x.id) + '" data-pergunta="Refazer &quot;' + nome + '&quot; do zero?">↻ Refazer do zero</button>';
+      // Etapa pronta: o Refazer fica pequeno no canto da linha (sao muitas).
+      const noCanto = x.estado === 'ok' || x.estado === 'pulada';
+      return '<li class="etapa ' + esc(x.estado) + '"><div class="l1"><span>' + ic + '</span><span class="nm">' + nome + '</span>' +
+        (x.estado === 'fazendo' ? '<b>' + (x.pct || 0) + '%</b>' : '') + (noCanto ? bt : '') + '</div>' +
+        (x.info ? '<div class="inf">' + esc(x.info) + '</div>' : '') +
+        (x.estado === 'fazendo' ? '<div class="barra"><i style="width:' + (x.pct || 0) + '%"></i></div>' : '') +
+        (bt && !noCanto ? '<div class="botoes">' + bt + '</div>' : '') + '</li>';
+    }).join('');
+
+    const f = e.fila || { ativa: false, itens: [] };
+    el('cartaoFila').hidden = !f.itens.length;
+    el('filaEstado').textContent = (f.ativa ? 'ligada' : 'parada') + ' · ' + f.itens.filter((x) => !x.estado).length + ' esperando';
+    el('filaEstado').className = 'etiq' + (f.ativa ? ' verde' : '');
+    el('fila').innerHTML = f.itens.map((x, i) => {
+      const [nome, cor] = x.estado === 'pronto' && x.canal ? ['✓ Programado', 'verde'] : (ESTADO_FILA[x.estado] || ESTADO_FILA['']);
+      return '<li><span class="n">' + (i + 1) + '</span><span class="tt">' + esc(x.titulo) + (x.info ? '<div class="dica">' + esc(x.info) + '</div>' : '') + '</span><span class="etiq ' + cor + '">' + nome + '</span></li>';
+    }).join('');
+    el('botoesFila').innerHTML = f.ativa
+      ? '<button data-acao="fila_pausar" data-pergunta="Pausar a fila? O vídeo de agora termina, o próximo não começa.">⏸ Pausar a fila</button>'
+      : (f.itens.some((x) => !x.estado || x.estado === 'erro') ? '<button class="laranja" data-acao="fila_comecar">▶ Começar a fila</button>' : '');
+
+    const log = (e.log || []).slice().reverse();
+    el('log').innerHTML = log.map((l) => '<div class="' + esc(l.nivel) + '">' + new Date(l.hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + '  ' + esc(l.texto) + '</div>').join('') || '<div>Nada ainda.</div>';
+
+    if (!etapas.length && !f.itens.length) {
+      el('andamento').hidden = false;
+      el('titulo').textContent = 'O Piloto não está fazendo nenhum vídeo agora.';
+    }
+  }
+
+  async function ler() {
+    if (!vinc) { el('semVinculo').hidden = false; el('pc').textContent = ''; return; }
+    try {
+      const r = await rpc('celular_ler', { p_id: vinc.v, p_seg_cel: vinc.k });
+      if (!r || r.ok === false) {
+        el('tudo').hidden = true;
+        el('semVinculo').hidden = false;
+        el('pc').textContent = 'vínculo desfeito no computador';
+        return;
+      }
+      el('semVinculo').hidden = true;
+      el('tudo').hidden = false;
+      pintar(r);
+    } catch (e) {
+      el('pc').innerHTML = '<span class="bola off"></span>sem internet no celular? tentando de novo...';
+    }
+  }
+
+  document.body.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-acao]');
+    if (!b) return;
+    mandar(b.dataset.acao, b.dataset.etapa, b.dataset.pergunta);
+  });
+
+  let relogio = null;
+  function rodar() { clearInterval(relogio); ler(); relogio = setInterval(() => { if (!document.hidden) ler(); }, 4000); }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) ler(); });
+  rodar();
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
