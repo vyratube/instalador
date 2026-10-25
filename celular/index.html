@@ -88,7 +88,12 @@
   .capa.on .ck { display: block; }
   .capa .sem { color: var(--fraco); font-size: 12px; display: flex; align-items: center; justify-content: center; height: 100%; }
   .video-p video { width: 100%; border-radius: 10px; background: #000; margin-top: 10px; }
-  .video-p select { font: inherit; font-size: 14px; width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--borda); background: #222228; color: var(--texto); margin-top: 10px; }
+  .video-p select, .video-p input { font: inherit; font-size: 15px; width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--borda); background: #222228; color: var(--texto); margin-top: 4px; min-height: 42px; color-scheme: dark; }
+  .agenda { margin-top: 12px; display: grid; gap: 8px; }
+  .agenda label { font-size: 13px; color: var(--fraco); display: block; }
+  .agenda .dh { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; }
+  .aviso-dia { color: var(--amarelo); font-size: 13px; }
+  .aviso-dia:empty { display: none; }
   /* Tela cheia propria da previa (25/10) */
   body.em-cheia { overflow: hidden; }
   .cheia-camada { position: fixed; inset: 0; background: #000; z-index: 20; display: flex; align-items: center; justify-content: center; }
@@ -138,7 +143,7 @@
   <!-- 25/10: videos prontos -> escolher a capa, ver a previa e programar -->
   <details class="cartao dobra" id="cartaoPostar" data-dobra="postar" open hidden>
     <summary><h2>📅 Postar <span class="etiq" id="postarEstado"></span></h2></summary>
-    <p class="dica">Escolha a capa, confira a prévia e programe. O vídeo sobe agora e fica <b>programado</b> no próximo horário livre do canal (o mesmo do "Postar sozinho").</p>
+    <p class="dica">Escolha a capa, confira a prévia, o canal, a data e a hora, e programe. O vídeo sobe agora e fica <b>programado</b> (não vai ao ar na hora).</p>
     <div id="postarLista"></div>
   </details>
 
@@ -322,6 +327,7 @@
     const e = r.estado || {};
     const lista = e.postar || [];
     const canais = e.canais || [];
+    canaisAtuais = canais;
     el('cartaoPostar').hidden = !lista.length;
     el('postarEstado').textContent = lista.length ? lista.length + (lista.length === 1 ? ' vídeo pronto' : ' vídeos prontos') : '';
     const url = await assinar(r.pasta, lista.flatMap((v) => [...v.thumbs.map((t) => t.arq), v.previa]));
@@ -332,7 +338,11 @@
       if (!b) {
         b = blocos[v.id] = document.createElement('div');
         b.className = 'video-p';
-        b.innerHTML = '<div class="tv"></div><div class="capas"></div><div class="previa-p"></div><select class="canal-p"></select>' +
+        b.innerHTML = '<div class="tv"></div><div class="capas"></div><div class="previa-p"></div>' +
+          // 25/10 (pedido dela): canal, data e hora para programar.
+          '<div class="agenda"><label>Canal<select class="canal-p"></select></label>' +
+          '<div class="dh"><label>Data<input type="date" class="data-p"></label><label>Hora<input type="time" class="hora-p" step="900"></label></div>' +
+          '<div class="dica fuso-p"></div><div class="aviso-dia"></div></div>' +
           '<div class="botoes"><button class="laranja programar">📅 Programar</button></div><div class="estado-p"></div>';
         b.querySelector('.capas').addEventListener('click', (ev) => {
           const c = ev.target.closest('[data-capa]');
@@ -340,7 +350,14 @@
           escolha[v.id] = { ...(escolha[v.id] || {}), capa: Number(c.dataset.capa) };
           for (const x of b.querySelectorAll('.capa')) x.classList.toggle('on', x === c);
         });
-        b.querySelector('.canal-p').addEventListener('change', (ev) => { escolha[v.id] = { ...(escolha[v.id] || {}), canal: Number(ev.target.value) }; });
+        b.querySelector('.canal-p').addEventListener('change', (ev) => {
+          escolha[v.id] = { ...(escolha[v.id] || {}), canal: Number(ev.target.value) };
+          horario(b, v.id, !(escolha[v.id] || {}).mexeu);
+        });
+        for (const cl of ['.data-p', '.hora-p']) b.querySelector(cl).addEventListener('change', () => {
+          escolha[v.id] = { ...(escolha[v.id] || {}), mexeu: true, data: b.querySelector('.data-p').value, hora: b.querySelector('.hora-p').value };
+          horario(b, v.id, false);
+        });
         b.querySelector('.programar').addEventListener('click', () => programar(v.id, b));
       }
       if (caixa.children[i] !== b) caixa.insertBefore(b, caixa.children[i] || null);
@@ -377,8 +394,10 @@
       }
       // Canais conectados, com o proximo horario livre de cada um.
       const sel = b.querySelector('.canal-p');
-      const htmlCanais = canais.map((c) => '<option value="' + c.n + '">' + esc(c.nome) + ' · ' + esc(c.proximo) + (c.ocupado ? ' (enviando outro)' : '') + '</option>').join('') || '<option value="0">Nenhum canal conectado (tela Postar do PC)</option>';
+      const htmlCanais = canais.map((c) => '<option value="' + c.n + '">' + esc(c.nome) + (c.ocupado ? ' (enviando outro vídeo)' : '') + '</option>').join('') || '<option value="0">Nenhum canal conectado (tela Postar do PC)</option>';
       if (sel.dataset.html !== htmlCanais) { sel.dataset.html = htmlCanais; sel.innerHTML = htmlCanais; if (esc0.canal) sel.value = String(esc0.canal); }
+      // Data e hora: o proximo horario livre do canal, ate ela mexer.
+      horario(b, v.id, !esc0.mexeu);
       // Andamento do envio.
       const st = b.querySelector('.estado-p');
       const bt = b.querySelector('.programar');
@@ -419,14 +438,35 @@
     vd.play().catch(() => {});
   }
 
+  /* Data e hora do video: com "trocar", vem o proximo horario livre do canal
+     escolhido; o aviso diz o fuso (o do publico) e se o dia ja tem video. */
+  let canaisAtuais = [];
+  const fusoNome = (f) => String(f || '').split('/').pop().replace(/_/g, ' ');
+  function horario(b, id, trocar) {
+    const c = canaisAtuais.find((x) => x.n === Number(b.querySelector('.canal-p').value)) || canaisAtuais[0];
+    const di = b.querySelector('.data-p'), hi = b.querySelector('.hora-p');
+    const hoje = new Date();
+    di.min = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-' + String(hoje.getDate()).padStart(2, '0');
+    if (!c) return;
+    if ((trocar || !di.value) && c.data && di.value !== c.data && document.activeElement !== di) di.value = c.data;
+    if ((trocar || !hi.value) && c.hora && hi.value !== c.hora && document.activeElement !== hi) hi.value = c.hora;
+    b.querySelector('.fuso-p').textContent = 'Horário do público (' + fusoNome(c.fuso) + '). Próximo livre: ' + c.proximo + '.';
+    const ocupado = (c.ocupados || []).includes(di.value);
+    b.querySelector('.aviso-dia').textContent = ocupado ? '⚠ Este canal já tem vídeo programado neste dia. Dá para programar mesmo assim.' : '';
+  }
+
   async function programar(id, b) {
     const capa = (b.querySelector('.capa.on') || {}).dataset ? Number(b.querySelector('.capa.on').dataset.capa) : 0;
     const sel = b.querySelector('.canal-p');
     const canal = Number(sel.value) || 0;
     if (!canal) { toast('Conecte um canal na tela Postar do computador.'); return; }
-    const onde = sel.options[sel.selectedIndex].textContent;
-    await mandar('postar', id + '|' + capa + '|' + canal,
-      'Programar "' + b.dataset.titulo + '"?\n\n' + onde + '\nCapa ' + (capa || '—') + '\n\nO vídeo sobe agora e fica programado (não vai ao ar na hora).');
+    const data = b.querySelector('.data-p').value, hora = b.querySelector('.hora-p').value;
+    if (!data || !hora) { toast('Escolha a data e a hora.'); return; }
+    const c = canaisAtuais.find((x) => x.n === canal) || {};
+    const quando = data.split('-').reverse().join('/') + ' às ' + hora + ' (horário de ' + fusoNome(c.fuso) + ')';
+    await mandar('postar', [id, capa, canal, data, hora].join('|'),
+      'Programar "' + b.dataset.titulo + '"?\n\nCanal: ' + sel.options[sel.selectedIndex].textContent + '\nQuando: ' + quando + '\nCapa ' + (capa || '—') +
+      '\n\nO vídeo sobe agora e fica programado (não vai ao ar na hora).');
   }
 
   async function ler() {
