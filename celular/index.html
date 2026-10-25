@@ -88,6 +88,13 @@
     <div class="botoes"><button class="laranja" data-acao="resolvi">✓ Ok, resolvi</button></div>
   </div>
 
+  <!-- A fila fica em cima do andamento (pedido dela, 25/10) -->
+  <div class="cartao" id="cartaoFila" hidden>
+    <h2>📋 Fila de títulos <span class="etiq" id="filaEstado"></span></h2>
+    <ol class="fila" id="fila"></ol>
+    <div class="botoes" id="botoesFila"></div>
+  </div>
+
   <div class="cartao" id="andamento">
     <h2>⚙ Andamento <span class="etiq" id="estadoGeral"></span></h2>
     <div class="titulo-v" id="titulo"></div>
@@ -95,12 +102,6 @@
     <div class="erro-g" id="erro" hidden></div>
     <div class="botoes" id="botoesGerais"></div>
     <ol class="etapas" id="etapas"></ol>
-  </div>
-
-  <div class="cartao" id="cartaoFila" hidden>
-    <h2>📋 Fila de títulos <span class="etiq" id="filaEstado"></span></h2>
-    <ol class="fila" id="fila"></ol>
-    <div class="botoes" id="botoesFila"></div>
   </div>
 
   <div class="cartao">
