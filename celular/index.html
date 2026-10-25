@@ -67,6 +67,30 @@
   #toast.on { opacity: 1; }
   .vazio { text-align: center; padding: 40px 10px; }
   details summary { cursor: pointer; font-weight: 600; }
+  /* Setinha para recolher (25/10) */
+  .dobra > summary { list-style: none; display: flex; align-items: center; gap: 8px; }
+  .dobra > summary::-webkit-details-marker { display: none; }
+  .dobra > summary::before { content: '▸'; color: var(--fraco); font-size: 14px; transition: transform .15s; }
+  .dobra[open] > summary::before { transform: rotate(90deg); }
+  .dobra > summary h2 { margin: 0; flex: 1; }
+  .dobra[open] > summary { margin-bottom: 8px; }
+  /* Postar (25/10) */
+  .video-p { border-top: 1px solid var(--borda); padding-top: 12px; margin-top: 12px; }
+  .video-p:first-child { border-top: 0; margin-top: 0; padding-top: 4px; }
+  .video-p .tv { font-weight: 600; margin-bottom: 8px; overflow-wrap: anywhere; }
+  .capas { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .capa { position: relative; border: 2px solid transparent; border-radius: 10px; overflow: hidden; background: #000; padding: 0; min-height: 0; aspect-ratio: 16 / 9; }
+  .capa img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .capa.on { border-color: var(--laranja); }
+  .capa .nt { position: absolute; left: 4px; bottom: 4px; font-size: 11px; background: rgba(0,0,0,.75); padding: 1px 6px; border-radius: 10px; }
+  .capa .nt.bom { color: var(--verde); }
+  .capa .ck { position: absolute; right: 4px; top: 4px; background: var(--laranja); color: #111; border-radius: 50%; width: 20px; height: 20px; font-size: 13px; line-height: 20px; text-align: center; display: none; }
+  .capa.on .ck { display: block; }
+  .capa .sem { color: var(--fraco); font-size: 12px; display: flex; align-items: center; justify-content: center; height: 100%; }
+  .video-p video { width: 100%; border-radius: 10px; background: #000; margin-top: 10px; }
+  .video-p select { font: inherit; font-size: 14px; width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--borda); background: #222228; color: var(--texto); margin-top: 10px; }
+  .estado-p { font-size: 13px; margin-top: 8px; overflow-wrap: anywhere; }
+  .estado-p.erro { color: #ff9a9a; } .estado-p.ok { color: var(--verde); } .estado-p.vai { color: var(--amarelo); }
 </style>
 </head>
 <body>
@@ -88,28 +112,34 @@
     <div class="botoes"><button class="laranja" data-acao="resolvi">✓ Ok, resolvi</button></div>
   </div>
 
-  <!-- A fila fica em cima do andamento (pedido dela, 25/10) -->
-  <div class="cartao" id="cartaoFila" hidden>
-    <h2>📋 Fila de títulos <span class="etiq" id="filaEstado"></span></h2>
+  <!-- A fila fica em cima do andamento (pedido dela, 25/10). Cada cartao recolhe
+       pela setinha do titulo (o celular lembra o que ficou fechado). -->
+  <details class="cartao dobra" id="cartaoFila" data-dobra="fila" open hidden>
+    <summary><h2>📋 Fila de títulos <span class="etiq" id="filaEstado"></span></h2></summary>
     <ol class="fila" id="fila"></ol>
     <div class="botoes" id="botoesFila"></div>
-  </div>
+  </details>
 
-  <div class="cartao" id="andamento">
-    <h2>⚙ Andamento <span class="etiq" id="estadoGeral"></span></h2>
+  <details class="cartao dobra" id="andamento" data-dobra="andamento" open>
+    <summary><h2>⚙ Andamento <span class="etiq" id="estadoGeral"></span></h2></summary>
     <div class="titulo-v" id="titulo"></div>
     <div class="total"><div class="barra"><i id="barraTotal"></i></div><b id="pctTotal">0%</b></div>
     <div class="erro-g" id="erro" hidden></div>
     <div class="botoes" id="botoesGerais"></div>
     <ol class="etapas" id="etapas"></ol>
-  </div>
+  </details>
 
-  <div class="cartao">
-    <details>
-      <summary>📝 O que aconteceu (registro)</summary>
-      <div class="log" id="log"></div>
-    </details>
-  </div>
+  <!-- 25/10: videos prontos -> escolher a capa, ver a previa e programar -->
+  <details class="cartao dobra" id="cartaoPostar" data-dobra="postar" open hidden>
+    <summary><h2>📅 Postar <span class="etiq" id="postarEstado"></span></h2></summary>
+    <p class="dica">Escolha a capa, confira a prévia e programe. O vídeo sobe agora e fica <b>programado</b> no próximo horário livre do canal (o mesmo do "Postar sozinho").</p>
+    <div id="postarLista"></div>
+  </details>
+
+  <details class="cartao dobra" data-dobra="registro">
+    <summary><h2>📝 O que aconteceu (registro)</h2></summary>
+    <div class="log" id="log"></div>
+  </details>
 </div>
 
 <div id="toast"></div>
@@ -244,6 +274,129 @@
       el('andamento').hidden = false;
       el('titulo').textContent = 'O Piloto não está fazendo nenhum vídeo agora.';
     }
+    pintarPostar(r);
+  }
+
+  /* ---------------- setinha para recolher (25/10) ---------------- */
+  let fechados = {};
+  try { fechados = JSON.parse(localStorage.getItem('vyra_cel_fechados') || '{}') || {}; } catch (e) { /* sem */ }
+  for (const d of document.querySelectorAll('details.dobra')) {
+    const k = d.dataset.dobra;
+    if (k in fechados) d.open = !fechados[k];
+    d.addEventListener('toggle', () => {
+      fechados[k] = !d.open;
+      try { localStorage.setItem('vyra_cel_fechados', JSON.stringify(fechados)); } catch (e) { /* sem */ }
+    });
+  }
+
+  /* ---------------- postar: capas, previa e programar (25/10) ---------------- */
+  // Os enderecos assinados das capas e previas valem 1 h; guardados por 50 min.
+  const assinados = {};
+  async function assinar(pasta, caminhos) {
+    const faltam = caminhos.filter((c) => c && !(assinados[c] && assinados[c].ate > Date.now()));
+    if (faltam.length && pasta) {
+      try {
+        const r = await fetch(SUPABASE + '/storage/v1/object/sign/celular', {
+          method: 'POST',
+          headers: { apikey: CHAVE, Authorization: 'Bearer ' + CHAVE, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ expiresIn: 3600, paths: faltam.map((c) => pasta + '/' + c) })
+        });
+        const lista = await r.json();
+        for (const x of Array.isArray(lista) ? lista : []) {
+          if (x.signedURL) assinados[String(x.path).slice(pasta.length + 1)] = { url: SUPABASE + '/storage/v1' + x.signedURL, ate: Date.now() + 50 * 60000 };
+        }
+      } catch (e) { /* tenta na proxima volta */ }
+    }
+    return (c) => (assinados[c] ? assinados[c].url : '');
+  }
+
+  const escolha = {};      // id do video -> { capa, canal } (o que ela tocou)
+  const blocos = {};       // id do video -> o bloco na tela (nao e refeito a cada 4 s: a previa nao para)
+  async function pintarPostar(r) {
+    const e = r.estado || {};
+    const lista = e.postar || [];
+    const canais = e.canais || [];
+    el('cartaoPostar').hidden = !lista.length;
+    el('postarEstado').textContent = lista.length ? lista.length + (lista.length === 1 ? ' vídeo pronto' : ' vídeos prontos') : '';
+    const url = await assinar(r.pasta, lista.flatMap((v) => [...v.thumbs.map((t) => t.arq), v.previa]));
+    const caixa = el('postarLista');
+    for (const id of Object.keys(blocos)) if (!lista.some((v) => v.id === id)) { blocos[id].remove(); delete blocos[id]; }
+    lista.forEach((v, i) => {
+      let b = blocos[v.id];
+      if (!b) {
+        b = blocos[v.id] = document.createElement('div');
+        b.className = 'video-p';
+        b.innerHTML = '<div class="tv"></div><div class="capas"></div><div class="previa-p"></div><select class="canal-p"></select>' +
+          '<div class="botoes"><button class="laranja programar">📅 Programar</button></div><div class="estado-p"></div>';
+        b.querySelector('.capas').addEventListener('click', (ev) => {
+          const c = ev.target.closest('[data-capa]');
+          if (!c) return;
+          escolha[v.id] = { ...(escolha[v.id] || {}), capa: Number(c.dataset.capa) };
+          for (const x of b.querySelectorAll('.capa')) x.classList.toggle('on', x === c);
+        });
+        b.querySelector('.canal-p').addEventListener('change', (ev) => { escolha[v.id] = { ...(escolha[v.id] || {}), canal: Number(ev.target.value) }; });
+        b.querySelector('.programar').addEventListener('click', () => programar(v.id, b));
+      }
+      if (caixa.children[i] !== b) caixa.insertBefore(b, caixa.children[i] || null);
+      b.dataset.titulo = v.titulo;
+      b.querySelector('.tv').textContent = v.titulo;
+      // Capas: a escolhida, senao a recomendada (⭐), senao a 1.
+      const esc0 = escolha[v.id] || {};
+      const capa = esc0.capa || (v.thumbs.find((t) => t.melhor) || v.thumbs[0] || {}).n || 0;
+      const htmlCapas = v.thumbs.map((t) => '<button class="capa' + (t.n === capa ? ' on' : '') + '" data-capa="' + t.n + '">' +
+        (t.arq && url(t.arq) ? '<img src="' + esc(url(t.arq)) + '" alt="Capa ' + t.n + '">' : '<span class="sem">enviando...</span>') +
+        (t.nota != null ? '<span class="nt' + (t.melhor ? ' bom' : '') + '">' + (t.melhor ? '⭐ ' : '') + t.nota + '%</span>' : '<span class="nt">Capa ' + t.n + '</span>') +
+        '<span class="ck">✓</span></button>').join('') || '<span class="dica">Este vídeo não tem capa (thumb_N) na pasta.</span>';
+      const cap = b.querySelector('.capas');
+      if (cap.dataset.html !== htmlCapas) { cap.dataset.html = htmlCapas; cap.innerHTML = htmlCapas; }
+      // Previa: so carrega quando ela toca (cada vez gasta uns 20 MB do plano gratis).
+      const pv = b.querySelector('.previa-p');
+      const chavePrevia = v.previa ? 'v:' + v.previa : 'i:' + v.previaInfo;
+      if (pv.dataset.chave !== chavePrevia) {
+        pv.dataset.chave = chavePrevia;
+        if (v.previa) {
+          pv.innerHTML = '<div class="botoes"><button class="ver">▶ Ver prévia (3 primeiros minutos)</button></div>';
+          pv.querySelector('.ver').addEventListener('click', async () => {
+            const u = (await assinar(r.pasta, [v.previa]))(v.previa);
+            if (!u) { toast('A prévia ainda não está disponível.'); return; }
+            pv.innerHTML = '<video controls playsinline preload="metadata"></video>';
+            const vd = pv.querySelector('video');
+            vd.src = u;
+            vd.play().catch(() => {});
+          });
+        } else pv.innerHTML = '<div class="dica" style="margin-top:8px">🎬 ' + esc(v.previaInfo || '') + '</div>';
+      }
+      // Canais conectados, com o proximo horario livre de cada um.
+      const sel = b.querySelector('.canal-p');
+      const htmlCanais = canais.map((c) => '<option value="' + c.n + '">' + esc(c.nome) + ' · ' + esc(c.proximo) + (c.ocupado ? ' (enviando outro)' : '') + '</option>').join('') || '<option value="0">Nenhum canal conectado (tela Postar do PC)</option>';
+      if (sel.dataset.html !== htmlCanais) { sel.dataset.html = htmlCanais; sel.innerHTML = htmlCanais; if (esc0.canal) sel.value = String(esc0.canal); }
+      // Andamento do envio.
+      const st = b.querySelector('.estado-p');
+      const bt = b.querySelector('.programar');
+      let txt = '', cls = '';
+      if (v.postando && v.postando.estado === 'postando') { txt = '⏳ ' + v.postando.texto; cls = 'vai'; }
+      else if (v.postando && v.postando.estado === 'erro') { txt = '✗ ' + v.postando.texto; cls = 'erro'; }
+      if (v.postado) {
+        const p = v.postado;
+        txt = p.estado === 'falhou' ? '✗ O envio falhou: ' + (p.erro || '?')
+          : '✓ Programado para ' + (p.texto || '?') + ' em ' + (p.canal || '') + (p.estado === 'enviando' ? ' · subindo ' + (p.pct != null ? p.pct + '%' : '...') : ' · enviado');
+        cls = p.estado === 'falhou' ? 'erro' : 'ok';
+      }
+      st.textContent = txt;
+      st.className = 'estado-p ' + cls;
+      bt.hidden = !!v.postado && v.postado.estado !== 'falhou';
+      bt.disabled = !canais.length || !!(v.postando && v.postando.estado === 'postando');
+    });
+  }
+
+  async function programar(id, b) {
+    const capa = (b.querySelector('.capa.on') || {}).dataset ? Number(b.querySelector('.capa.on').dataset.capa) : 0;
+    const sel = b.querySelector('.canal-p');
+    const canal = Number(sel.value) || 0;
+    if (!canal) { toast('Conecte um canal na tela Postar do computador.'); return; }
+    const onde = sel.options[sel.selectedIndex].textContent;
+    await mandar('postar', id + '|' + capa + '|' + canal,
+      'Programar "' + b.dataset.titulo + '"?\n\n' + onde + '\nCapa ' + (capa || '—') + '\n\nO vídeo sobe agora e fica programado (não vai ao ar na hora).');
   }
 
   async function ler() {
