@@ -89,6 +89,12 @@
   .capa .sem { color: var(--fraco); font-size: 12px; display: flex; align-items: center; justify-content: center; height: 100%; }
   .video-p video { width: 100%; border-radius: 10px; background: #000; margin-top: 10px; }
   .video-p select { font: inherit; font-size: 14px; width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--borda); background: #222228; color: var(--texto); margin-top: 10px; }
+  /* Tela cheia propria da previa (25/10) */
+  body.em-cheia { overflow: hidden; }
+  .cheia-camada { position: fixed; inset: 0; background: #000; z-index: 20; display: flex; align-items: center; justify-content: center; }
+  .cheia-camada video { flex: none; width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; border-radius: 0; object-fit: contain; }
+  .cheia-camada.girar video { width: 100vh; height: 100vw; transform: rotate(90deg); }
+  .sair-cheia { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 10px; z-index: 21; width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%; background: rgba(0,0,0,.6); border-color: rgba(255,255,255,.3); font-size: 18px; }
   .estado-p { font-size: 13px; margin-top: 8px; overflow-wrap: anywhere; }
   .estado-p.erro { color: #ff9a9a; } .estado-p.ok { color: var(--verde); } .estado-p.vai { color: var(--amarelo); }
 </style>
@@ -359,10 +365,13 @@
           pv.querySelector('.ver').addEventListener('click', async () => {
             const u = (await assinar(r.pasta, [v.previa]))(v.previa);
             if (!u) { toast('A prévia ainda não está disponível.'); return; }
-            pv.innerHTML = '<video controls playsinline preload="metadata"></video>';
+            // 25/10: tela cheia propria (a do Chrome mostra um aviso que tampa a legenda e nao sai).
+            pv.innerHTML = '<video controls playsinline preload="metadata" controlsList="nofullscreen" disablePictureInPicture></video>' +
+              '<div class="botoes"><button class="cheia">⛶ Tela cheia</button></div>';
             const vd = pv.querySelector('video');
             vd.src = u;
             vd.play().catch(() => {});
+            pv.querySelector('.cheia').addEventListener('click', () => telaCheia(vd, pv));
           });
         } else pv.innerHTML = '<div class="dica" style="margin-top:8px">🎬 ' + esc(v.previaInfo || '') + '</div>';
       }
@@ -387,6 +396,27 @@
       bt.hidden = !!v.postado && v.postado.estado !== 'falhou';
       bt.disabled = !canais.length || !!(v.postando && v.postando.estado === 'postando');
     });
+  }
+
+  /* Tela cheia sem a do navegador: o video vai para uma camada que cobre a tela
+     e, com o celular em pe, fica deitado (girado) para ocupar tudo. */
+  function telaCheia(vd, casa) {
+    const camada = document.createElement('div');
+    camada.className = 'cheia-camada';
+    camada.innerHTML = '<button class="sair-cheia" aria-label="Sair da tela cheia">✕</button>';
+    document.body.appendChild(camada);
+    document.body.classList.add('em-cheia');
+    camada.insertBefore(vd, camada.firstChild);
+    const ajustar = () => camada.classList.toggle('girar', innerHeight > innerWidth);
+    ajustar();
+    addEventListener('resize', ajustar);
+    camada.querySelector('.sair-cheia').addEventListener('click', () => {
+      removeEventListener('resize', ajustar);
+      casa.insertBefore(vd, casa.firstChild);
+      camada.remove();
+      document.body.classList.remove('em-cheia');
+    });
+    vd.play().catch(() => {});
   }
 
   async function programar(id, b) {
