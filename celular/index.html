@@ -66,6 +66,14 @@
   #toast { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); background: #26262c; border: 1px solid var(--borda); border-radius: 12px; padding: 12px 14px; text-align: center; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 5; }
   #toast.on { opacity: 1; }
   .vazio { text-align: center; padding: 40px 10px; }
+  /* Vincular de novo pelo app (25/10) */
+  .botoes.centro { justify-content: center; margin-top: 14px; }
+  #camQr { width: 100%; max-width: 360px; aspect-ratio: 1; object-fit: cover; border-radius: 14px; background: #000; margin: 14px auto 6px; display: block; }
+  .colar { margin-top: 16px; text-align: left; }
+  .colar summary { color: var(--fraco); font-weight: 400; font-size: 14px; text-align: center; }
+  .colar input { width: 100%; margin-top: 10px; font: inherit; font-size: 14px; padding: 10px; border-radius: 10px; border: 1px solid var(--borda); background: #222228; color: var(--texto); }
+  .aviso-qr { margin-top: 12px; font-size: 13px; color: var(--amarelo); }
+  .aviso-qr:empty { display: none; }
   details summary { cursor: pointer; font-weight: 600; }
   /* Setinha para recolher (25/10) */
   .dobra > summary { list-style: none; display: flex; align-items: center; gap: 8px; }
@@ -112,7 +120,20 @@
 
 <div id="semVinculo" class="cartao vazio" hidden>
   <h2>Celular não vinculado</h2>
-  <p class="dica">No computador, abra o VyraTube → <b>Piloto Automático</b> → <b>📱 Acompanhar pelo celular</b> → <b>Mostrar QR code</b>, e aponte a câmera do celular para o QR code.</p>
+  <p class="dica">No computador, abra o VyraTube → <b>Piloto Automático</b> → <b>📱 Acompanhar pelo celular</b> → <b>Mostrar QR code</b> (ou <b>↻ Vincular outro celular</b>). Depois toque no botão abaixo e aponte para o QR code.</p>
+  <!-- 25/10 (pedido dela): vincular de novo sem sair do app -->
+  <div class="botoes centro"><button class="laranja" id="btnLerQr">📷 Ler o QR code do computador</button></div>
+  <div id="leitor" hidden>
+    <video id="camQr" playsinline muted></video>
+    <div class="dica">Aponte a câmera para o QR code na tela do computador.</div>
+    <div class="botoes centro"><button id="btnPararQr">Cancelar</button></div>
+  </div>
+  <details class="colar">
+    <summary>Ou cole o link do QR code</summary>
+    <input id="linkQr" type="url" placeholder="https://vyratube.github.io/instalador/celular/#v=..." autocomplete="off">
+    <div class="botoes centro"><button id="btnUsarLink">Vincular</button></div>
+  </details>
+  <div class="aviso-qr" id="avisoQr"></div>
 </div>
 
 <div id="tudo" hidden>
@@ -468,6 +489,53 @@
       'Programar "' + b.dataset.titulo + '"?\n\nCanal: ' + sel.options[sel.selectedIndex].textContent + '\nQuando: ' + quando + '\nCapa ' + (capa || '—') +
       '\n\nO vídeo sobe agora e fica programado (não vai ao ar na hora).');
   }
+
+  /* ---------------- vincular de novo pelo app (25/10) ----------------
+     O vinculo so nasce no computador (o segredo vem de la); aqui o app le o QR
+     code com a camera (BarcodeDetector do Chrome) ou recebe o link colado. */
+  function usarLink(texto) {
+    let u = null;
+    try { u = new URL(String(texto || '').trim()); } catch (e) { /* nao e link */ }
+    const p = u ? new URLSearchParams(u.hash.slice(1)) : null;
+    const v = p && p.get('v'), k = p && p.get('k');
+    if (!v || !k || !/^[0-9a-f-]{36}$/i.test(v) || k.length < 20) { el('avisoQr').textContent = 'Esse não é o QR code do VyraTube. Use o que aparece em Piloto Automático → 📱 Acompanhar pelo celular.'; return false; }
+    vinc = { v, k };
+    try { localStorage.setItem('vyra_celular', JSON.stringify(vinc)); } catch (e) { /* sem */ }
+    el('avisoQr').textContent = '';
+    el('linkQr').value = '';
+    toast('✓ Celular vinculado.');
+    ler();
+    return true;
+  }
+  let camera = null, procurando = null;
+  function pararQr() {
+    clearInterval(procurando);
+    if (camera) for (const t of camera.getTracks()) t.stop();
+    camera = null;
+    el('leitor').hidden = true;
+    el('btnLerQr').hidden = false;
+  }
+  el('btnLerQr').addEventListener('click', async () => {
+    el('avisoQr').textContent = '';
+    if (!('BarcodeDetector' in window)) { el('avisoQr').textContent = 'Este celular não lê QR code por aqui. Use a câmera do próprio celular no QR code, ou cole o link abaixo.'; return; }
+    try {
+      camera = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    } catch (e) { el('avisoQr').textContent = 'Não consegui abrir a câmera (permissão negada?). Libere a câmera para o VyraTube ou cole o link abaixo.'; return; }
+    const vd = el('camQr');
+    vd.srcObject = camera;
+    await vd.play().catch(() => {});
+    el('leitor').hidden = false;
+    el('btnLerQr').hidden = true;
+    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+    procurando = setInterval(async () => {
+      try {
+        const achados = await detector.detect(vd);
+        for (const a of achados) if (usarLink(a.rawValue)) { pararQr(); return; }
+      } catch (e) { /* quadro ainda nao chegou */ }
+    }, 350);
+  });
+  el('btnPararQr').addEventListener('click', pararQr);
+  el('btnUsarLink').addEventListener('click', () => usarLink(el('linkQr').value));
 
   async function ler() {
     if (!vinc) { el('semVinculo').hidden = false; el('pc').textContent = ''; return; }
