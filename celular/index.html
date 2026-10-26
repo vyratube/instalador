@@ -300,7 +300,10 @@
     el('filaEstado').className = 'etiq' + (f.ativa ? ' verde' : '');
     el('fila').innerHTML = f.itens.map((x, i) => {
       const [nome, cor] = x.estado === 'pronto' && x.canal ? ['✓ Programado', 'verde'] : (ESTADO_FILA[x.estado] || ESTADO_FILA['']);
-      return '<li><span class="n">' + (i + 1) + '</span><span class="tt">' + esc(x.titulo) + (x.info ? '<div class="dica">' + esc(x.info) + '</div>' : '') + '</span><span class="etiq ' + cor + '">' + nome + '</span></li>';
+      // 26/10 (pedido dela): titulo com erro -> "Tentar de novo" (vai como refazer + 'fila|<id>').
+      const tentar = x.estado === 'erro' && x.id
+        ? '<div class="botoes"><button class="laranja peq" data-acao="refazer" data-etapa="fila|' + esc(x.id) + '" data-pergunta="Tentar de novo &quot;' + esc(x.titulo) + '&quot;? Ele volta para a fila e continua de onde parou.">↻ Tentar de novo</button></div>' : '';
+      return '<li><span class="n">' + (i + 1) + '</span><span class="tt">' + esc(x.titulo) + (x.info ? '<div class="dica">' + esc(x.info) + '</div>' : '') + tentar + '</span><span class="etiq ' + cor + '">' + nome + '</span></li>';
     }).join('');
     el('botoesFila').innerHTML = f.ativa
       ? '<button data-acao="fila_pausar" data-pergunta="Pausar a fila? O vídeo de agora termina, o próximo não começa.">⏸ Pausar a fila</button>'
