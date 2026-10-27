@@ -406,9 +406,11 @@
         : x.canal ? '<div class="dica">📺 ' + esc(nomeCanal(canaisC, x.canal)) + '</div>' : '';
       return '<li><span class="n">' + (i + 1) + '</span><span class="tt">' + esc(x.titulo) + (x.info ? '<div class="dica">' + esc(x.info) + '</div>' : '') + canal + tentar + '</span><span class="etiq ' + cor + '">' + nome + '</span></li>';
     }).join(''));
-    el('botoesFila').innerHTML = f.ativa
+    el('botoesFila').innerHTML = (f.ativa
       ? '<button data-acao="fila_pausar" data-pergunta="Pausar a fila? O vídeo de agora termina, o próximo não começa.">⏸ Pausar a fila</button>'
-      : (f.itens.some((x) => !x.estado || x.estado === 'erro') ? '<button class="laranja" data-acao="fila_comecar">▶ Começar a fila</button>' : '');
+      : (f.itens.some((x) => !x.estado || x.estado === 'erro') ? '<button class="laranja" data-acao="fila_comecar">▶ Começar a fila</button>' : '')) +
+      // 27/10 (pedido dela): o mesmo "Tirar os prontos" do PC (os videos continuam nos Projetos).
+      (f.itens.some((x) => x.estado === 'pronto') ? '<button data-acao="refazer" data-etapa="filalimpar" data-pergunta="Tirar da fila os títulos prontos? Os vídeos continuam nos Projetos.">🧹 Tirar os prontos</button>' : '');
 
     const log = (e.log || []).slice().reverse();
     el('log').innerHTML = log.map((l) => '<div class="' + esc(l.nivel) + '">' + new Date(l.hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + '  ' + esc(l.texto) + '</div>').join('') || '<div>Nada ainda.</div>';
