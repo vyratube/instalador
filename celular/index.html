@@ -25,6 +25,7 @@
   .bola { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: var(--fraco); vertical-align: 1px; }
   .bola.on { background: var(--verde); }
   .bola.off { background: var(--vermelho); }
+  .bola.meio { background: var(--amarelo); }
   .cartao { background: var(--cartao); border: 1px solid var(--borda); border-radius: 14px; padding: 14px; margin: 12px 0; }
   h2 { font-size: 15px; margin: 0 0 8px; }
   .dica { color: var(--fraco); font-size: 13px; }
@@ -240,6 +241,7 @@
   }
 
   let enviando = false;
+  let pedidoReinicio = 0, iniVisto = 0, prontoDesde = 0;
   async function mandar(acao, etapa, pergunta) {
     if (pergunta && !confirm(pergunta)) return;
     if (enviando) return;
@@ -247,6 +249,7 @@
     try {
       const ok = await rpc('celular_comando', { p_id: vinc.v, p_seg_cel: vinc.k, p_acao: acao, p_etapa: etapa || '' });
       toast(ok ? '✓ Enviado. O computador faz em alguns segundos.' : 'Este celular não está mais vinculado.');
+      if (ok && acao === 'reiniciar') pedidoReinicio = Date.now();
       setTimeout(ler, 2500);
       setTimeout(ler, 6000);
     } catch (e) { toast('Não deu para enviar: ' + e.message); }
@@ -334,8 +337,18 @@
     const e = r.estado || {};
     const idade = r.estado_em ? (Date.parse(r.agora) - Date.parse(r.estado_em)) / 1000 : 9999;
     const pcOn = idade < 90;
-    el('pc').innerHTML = '<span class="bola ' + (pcOn ? 'on' : 'off') + '"></span>' + esc(r.nome_pc || 'PC') +
-      (pcOn ? ' · ligado' : ' · sem notícias há ' + (idade < 3600 ? Math.round(idade / 60) + ' min' : 'mais de 1 h') + ' (desligado ou sem internet)');
+    /* 27/10 (pedido dela): reiniciando / pronto. O PC manda a hora em que o
+       programa abriu (iniciado); hora nova = reiniciou. */
+    const ini = e.iniciado || 0;
+    if (iniVisto && ini > iniVisto) { prontoDesde = Date.now(); pedidoReinicio = 0; }
+    if (ini) iniVisto = Math.max(iniVisto, ini);
+    const reiniciando = (e.reiniciando && idade < 600) || (pedidoReinicio && Date.now() - pedidoReinicio < 5 * 60000);
+    const hhmm = (t) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    el('pc').innerHTML = reiniciando
+      ? '<span class="bola meio"></span>' + esc(r.nome_pc || 'PC') + ' · 🔄 reiniciando o programa... volta em cerca de 1 minuto'
+      : '<span class="bola ' + (pcOn ? 'on' : 'off') + '"></span>' + esc(r.nome_pc || 'PC') +
+        (pcOn ? (prontoDesde && Date.now() - prontoDesde < 3 * 60000 ? ' · ✓ programa reiniciado e pronto' : ' · ligado' + (ini ? ' · programa aberto às ' + hhmm(ini) : ''))
+          : ' · sem notícias há ' + (idade < 3600 ? Math.round(idade / 60) + ' min' : 'mais de 1 h') + ' (desligado ou sem internet)');
 
     el('precisa').hidden = !e.precisa;
     if (e.precisa) { el('precisaMotivo').textContent = e.precisa.motivo; el('precisaFazer').textContent = e.precisa.fazer; }
