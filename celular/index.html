@@ -62,6 +62,11 @@
   ol.fila .n { color: var(--fraco); min-width: 20px; }
   ol.fila .tt { flex: 1; overflow-wrap: anywhere; }
   select.sel-canal { font: inherit; font-size: 14px; display: block; width: 100%; margin-top: 5px; padding: 7px 9px; min-height: 38px; border-radius: 9px; border: 1px solid var(--borda); background: #222228; color: var(--texto); color-scheme: dark; }
+  ul.cr-tit { margin: 8px 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  ul.cr-tit label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; padding: 7px 4px; border-bottom: 1px solid var(--borda); }
+  ul.cr-tit input { width: 20px; height: 20px; flex: none; margin-top: 1px; accent-color: #ff7a1a; }
+  ul.cr-tit .ja { opacity: .5; }
+  .cr-linha { display: grid; gap: 4px; margin-top: 8px; font-size: 13px; color: var(--fraco); }
   .canal-atual { margin: 8px 0 4px; font-size: 14px; color: var(--fraco); }
   .log { font: 12px/1.5 ui-monospace, Consolas, monospace; max-height: 260px; overflow: auto; color: var(--fraco); }
   .log .err { color: #ff8a8a; } .log .ok { color: var(--verde); } .log .warn { color: var(--amarelo); }
@@ -171,6 +176,12 @@
     <div id="postarLista"></div>
   </details>
 
+  <!-- 26/10 (pedido dela): o Crescer canal no celular - gerar titulos novos e mandar para a fila -->
+  <details class="cartao dobra" id="cartaoCrescer" data-dobra="crescer" open hidden>
+    <summary><h2>🚀 Títulos novos</h2></summary>
+    <div id="crescerCorpo"></div>
+  </details>
+
   <details class="cartao dobra" data-dobra="registro">
     <summary><h2>📝 O que aconteceu (registro)</h2></summary>
     <div class="log" id="log"></div>
@@ -254,6 +265,68 @@
     (n && !canais.some((c) => c.n === n) ? '<option value="' + n + '" selected>Canal ' + n + '</option>' : '') + '</select>';
   // Nao repinta a lista com uma escolha aberta (a lista se fecharia no meio).
   const pintarSe = (elem, html) => { if (elem.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return; if (elem.dataset.html !== html) { elem.dataset.html = html; elem.innerHTML = html; } };
+  /* 26/10: Crescer canal no celular. O PC gera com o plano da ultima analise
+     do canal (refazer + 'crescer|<n>') e poe na fila os marcados
+     (refazer + 'crfila|<n>|<leva>|<0.2.5>|<canal de postar>'). */
+  const crSel = { canal: 0, leva: '', postar: null, novaDepois: 0 };
+  const crMarcados = new Set();   // '<leva>|<i>'
+  let crUltimo = null;
+  const quandoCurto = (t) => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  function pintarCrescer(e) {
+    crUltimo = e;
+    const cr = e.crescer, canais = e.canais || [];
+    el('cartaoCrescer').hidden = !cr || !canais.length;
+    if (!cr || !canais.length) return;
+    if (!canais.some((c) => c.n === crSel.canal)) { crSel.canal = canais[0].n; crSel.postar = null; }
+    if (crSel.postar === null) crSel.postar = crSel.canal;
+    const d = cr.canais[crSel.canal] || { levas: [] };
+    // Depois de "Gerar", abre sozinho na leva nova.
+    if (crSel.novaDepois && d.levas[0] && d.levas[0].quando > crSel.novaDepois) { crSel.leva = d.levas[0].id; crSel.novaDepois = 0; }
+    if (!d.levas.some((l) => l.id === crSel.leva)) crSel.leva = d.levas[0] ? d.levas[0].id : '';
+    const l = d.levas.find((x) => x.id === crSel.leva);
+    const marcados = l ? l.titulos.map((x, i) => i).filter((i) => crMarcados.has(l.id + '|' + i) && !l.titulos[i].existe) : [];
+    let h = '<label class="cr-linha">Canal<select class="sel-canal" data-crcanal>' + canais.map((c) => '<option value="' + c.n + '"' + (c.n === crSel.canal ? ' selected' : '') + '>' + esc(c.nome) + '</option>').join('') + '</select></label>';
+    h += '<div class="botoes"><button class="laranja" data-cr="gerar"' + (d.gerando ? ' disabled' : '') + '>' + (d.gerando ? '⏳ Gerando... (1 a 3 min)' : '✨ Gerar mais 10 títulos') + '</button></div>';
+    if (!d.analise) h += '<p class="dica">Este canal ainda não tem análise (tela Crescer canal do PC): os títulos seguem só o padrão dos vídeos dele.</p>';
+    if (d.erro) h += '<div class="erro-g">' + esc(d.erro) + '</div>';
+    if (d.levas.length) {
+      h += '<label class="cr-linha">Lista<select class="sel-canal" data-crleva>' + d.levas.map((x, i) => '<option value="' + esc(x.id) + '"' + (x.id === crSel.leva ? ' selected' : '') + '>' +
+        (i === 0 ? 'Mais nova · ' : '') + (x.origem === 'analise' ? 'da análise' : 'gerados') + ' · ' + quandoCurto(x.quando) + '</option>').join('') + '</select></label>';
+      h += '<ul class="cr-tit">' + l.titulos.map((x, i) => '<li><label class="' + (x.existe ? 'ja' : '') + '"><input type="checkbox" data-crt="' + i + '"' +
+        (x.existe ? ' disabled' : crMarcados.has(l.id + '|' + i) ? ' checked' : '') + '><span>' + esc(x.t) + (x.existe ? '<div class="dica">já existe um vídeo assim ou está na fila</div>' : '') + '</span></label></li>').join('') + '</ul>';
+      if (!cr.fila) h += '<p class="dica">Mandar para a fila do Piloto é do pacote Completo.</p>';
+      else {
+        h += '<label class="cr-linha">Quando o vídeo ficar pronto<select class="sel-canal" data-crpostar><option value="0">Não postar (fica no Postar)</option>' +
+          canais.map((c) => '<option value="' + c.n + '"' + (c.n === crSel.postar ? ' selected' : '') + '>Postar no ' + esc(c.nome) + '</option>').join('') + '</select></label>';
+        h += '<div class="botoes"><button class="laranja" data-cr="fila"' + (marcados.length ? '' : ' disabled') + '>→ Mandar ' + (marcados.length || '') + ' para a fila do Piloto</button></div>';
+      }
+    } else if (!d.gerando) h += '<p class="dica">Nenhum título ainda. Toque em Gerar.</p>';
+    pintarSe(el('crescerCorpo'), h);
+  }
+  el('crescerCorpo').addEventListener('change', (ev) => {
+    const t = ev.target;
+    if (t.matches('[data-crcanal]')) { crSel.canal = Number(t.value); crSel.leva = ''; crSel.postar = null; }
+    else if (t.matches('[data-crleva]')) crSel.leva = t.value;
+    else if (t.matches('[data-crpostar]')) crSel.postar = Number(t.value) || 0;
+    else if (t.matches('[data-crt]')) { const k = crSel.leva + '|' + t.dataset.crt; if (t.checked) crMarcados.add(k); else crMarcados.delete(k); }
+    t.blur();
+    if (crUltimo) pintarCrescer(crUltimo);
+  });
+  el('crescerCorpo').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-cr]');
+    if (!b || b.disabled) return;
+    if (b.dataset.cr === 'gerar') {
+      crSel.novaDepois = Date.now() - 5000;
+      await mandar('refazer', 'crescer|' + crSel.canal);
+    } else {
+      const idx = [...crMarcados].filter((k) => k.startsWith(crSel.leva + '|')).map((k) => k.split('|')[1]);
+      if (!idx.length) return;
+      const ok = confirm('Mandar ' + idx.length + ' título(s) para a fila do Piloto?' + (crSel.postar ? '' : '\n\nEles NÃO serão postados sozinhos (ficam no Postar).'));
+      if (!ok) return;
+      await mandar('refazer', ['crfila', crSel.canal, crSel.leva, idx.join('.'), crSel.postar || 0].join('|'));
+      for (const i of idx) crMarcados.delete(crSel.leva + '|' + i);
+    }
+  });
   const ESTADO_FILA = { '': ['Na fila', ''], fazendo: ['Fazendo', 'laranja'], pronto: ['✓ Pronto', 'verde'], erro: ['✗ Erro', 'vermelho'] };
 
   function pintar(r) {
@@ -344,6 +417,7 @@
       el('titulo').textContent = 'O Piloto não está fazendo nenhum vídeo agora.';
     }
     pintarPostar(r);
+    pintarCrescer(e);
   }
 
   /* ---------------- setinha para recolher (25/10) ---------------- */
