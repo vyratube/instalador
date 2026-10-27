@@ -61,6 +61,8 @@
   ol.fila li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
   ol.fila .n { color: var(--fraco); min-width: 20px; }
   ol.fila .tt { flex: 1; overflow-wrap: anywhere; }
+  select.sel-canal { font: inherit; font-size: 14px; display: block; width: 100%; margin-top: 5px; padding: 7px 9px; min-height: 38px; border-radius: 9px; border: 1px solid var(--borda); background: #222228; color: var(--texto); color-scheme: dark; }
+  .canal-atual { margin: 8px 0 4px; font-size: 14px; color: var(--fraco); }
   .log { font: 12px/1.5 ui-monospace, Consolas, monospace; max-height: 260px; overflow: auto; color: var(--fraco); }
   .log .err { color: #ff8a8a; } .log .ok { color: var(--verde); } .log .warn { color: var(--amarelo); }
   #toast { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); background: #26262c; border: 1px solid var(--borda); border-radius: 12px; padding: 12px 14px; text-align: center; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 5; }
@@ -155,6 +157,7 @@
   <details class="cartao dobra" id="andamento" data-dobra="andamento" open>
     <summary><h2>⚙ Andamento <span class="etiq" id="estadoGeral"></span></h2></summary>
     <div class="titulo-v" id="titulo"></div>
+    <div class="canal-atual" id="canalAtual" hidden></div>
     <div class="total"><div class="barra"><i id="barraTotal"></i></div><b id="pctTotal">0%</b></div>
     <div class="erro-g" id="erro" hidden></div>
     <div class="botoes" id="botoesGerais"></div>
@@ -239,6 +242,18 @@
   }
 
   const PULAVEIS = ['musica', 'descricao', 'tags'];
+  /* 26/10 (pedido dela): trocar "Postar no canal" / "Nao postar" de um titulo
+     pelo celular, ate a etapa de postar comecar. Vai como refazer +
+     'canal|<id ou atual>|<n>'. O que ela escolheu vale na tela por 30 s,
+     enquanto o PC ainda nao respondeu. */
+  const canalPedido = {};
+  const canalDe = (id, n) => { const p = canalPedido[id]; return p && Date.now() - p.t < 30000 ? p.n : (Number(n) || 0); };
+  const nomeCanal = (canais, n) => (canais.find((c) => c.n === n) || {}).nome || 'Canal ' + n;
+  const selCanal = (id, n, canais) => '<select class="sel-canal" data-ccanal="' + esc(id) + '"><option value="0">Não postar (fica no Postar)</option>' +
+    canais.map((c) => '<option value="' + c.n + '"' + (c.n === n ? ' selected' : '') + '>Postar no ' + esc(c.nome) + '</option>').join('') +
+    (n && !canais.some((c) => c.n === n) ? '<option value="' + n + '" selected>Canal ' + n + '</option>' : '') + '</select>';
+  // Nao repinta a lista com uma escolha aberta (a lista se fecharia no meio).
+  const pintarSe = (elem, html) => { if (elem.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return; if (elem.dataset.html !== html) { elem.dataset.html = html; elem.innerHTML = html; } };
   const ESTADO_FILA = { '': ['Na fila', ''], fazendo: ['Fazendo', 'laranja'], pronto: ['✓ Pronto', 'verde'], erro: ['✗ Erro', 'vermelho'] };
 
   function pintar(r) {
@@ -254,6 +269,14 @@
     const etapas = e.etapas || [];
     el('andamento').hidden = !etapas.length;
     el('titulo').textContent = e.titulo || '';
+    const canaisC = e.canais || [];
+    const etPostar = etapas.find((x) => x.id === 'postar');
+    const postandoJa = !!(e.fim || (etPostar && (etPostar.estado === 'fazendo' || etPostar.estado === 'ok')));
+    const nAtual = canalDe('atual', e.canal);
+    el('canalAtual').hidden = !etapas.length;
+    pintarSe(el('canalAtual'), postandoJa
+      ? (e.canal ? '📺 Postado / postando no ' + esc(nomeCanal(canaisC, e.canal)) : '📺 Não posta sozinho (fica no Postar)')
+      : '📺 Quando terminar:' + selCanal('atual', nAtual, canaisC));
     el('estadoGeral').textContent = e.rodando ? (e.pausar ? '⏸ vai pausar' : '⚙ trabalhando') : e.fim ? '✓ pronto' : etapas.length ? 'parado' : '';
     el('estadoGeral').className = 'etiq ' + (e.rodando ? 'laranja' : e.fim ? 'verde' : e.erro ? 'vermelho' : '');
     const feito = etapas.length ? etapas.reduce((s, x) => s + (x.estado === 'ok' || x.estado === 'pulada' ? 100 : x.estado === 'fazendo' ? (x.pct || 0) : 0), 0) / etapas.length : 0;
@@ -298,13 +321,17 @@
     el('cartaoFila').hidden = !f.itens.length;
     el('filaEstado').textContent = (f.ativa ? 'ligada' : 'parada') + ' · ' + f.itens.filter((x) => !x.estado).length + ' esperando';
     el('filaEstado').className = 'etiq' + (f.ativa ? ' verde' : '');
-    el('fila').innerHTML = f.itens.map((x, i) => {
+    pintarSe(el('fila'), f.itens.map((x, i) => {
       const [nome, cor] = x.estado === 'pronto' && x.canal ? ['✓ Programado', 'verde'] : (ESTADO_FILA[x.estado] || ESTADO_FILA['']);
       // 26/10 (pedido dela): titulo com erro -> "Tentar de novo" (vai como refazer + 'fila|<id>').
       const tentar = x.estado === 'erro' && x.id
         ? '<div class="botoes"><button class="laranja peq" data-acao="refazer" data-etapa="fila|' + esc(x.id) + '" data-pergunta="Tentar de novo &quot;' + esc(x.titulo) + '&quot;? Ele volta para a fila e continua de onde parou.">↻ Tentar de novo</button></div>' : '';
-      return '<li><span class="n">' + (i + 1) + '</span><span class="tt">' + esc(x.titulo) + (x.info ? '<div class="dica">' + esc(x.info) + '</div>' : '') + tentar + '</span><span class="etiq ' + cor + '">' + nome + '</span></li>';
-    }).join('');
+      // 26/10: o canal de cada titulo (o que esta sendo feito troca no Andamento).
+      const nC = canalDe(x.id, x.canal);
+      const canal = x.estado === '' || x.estado === 'erro' ? selCanal(x.id, nC, canaisC)
+        : x.canal ? '<div class="dica">📺 ' + esc(nomeCanal(canaisC, x.canal)) + '</div>' : '';
+      return '<li><span class="n">' + (i + 1) + '</span><span class="tt">' + esc(x.titulo) + (x.info ? '<div class="dica">' + esc(x.info) + '</div>' : '') + canal + tentar + '</span><span class="etiq ' + cor + '">' + nome + '</span></li>';
+    }).join(''));
     el('botoesFila').innerHTML = f.ativa
       ? '<button data-acao="fila_pausar" data-pergunta="Pausar a fila? O vídeo de agora termina, o próximo não começa.">⏸ Pausar a fila</button>'
       : (f.itens.some((x) => !x.estado || x.estado === 'erro') ? '<button class="laranja" data-acao="fila_comecar">▶ Começar a fila</button>' : '');
@@ -565,6 +592,14 @@
     }
   }
 
+  document.body.addEventListener('change', (ev) => {
+    const s = ev.target.closest('[data-ccanal]');
+    if (!s) return;
+    const n = Number(s.value) || 0;
+    canalPedido[s.dataset.ccanal] = { n, t: Date.now() };
+    s.blur();
+    mandar('refazer', 'canal|' + s.dataset.ccanal + '|' + n);
+  });
   document.body.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-acao]');
     if (!b) return;
