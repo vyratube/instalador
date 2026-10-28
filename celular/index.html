@@ -118,12 +118,48 @@
   .sair-cheia { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 10px; z-index: 21; width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%; background: rgba(0,0,0,.6); border-color: rgba(255,255,255,.3); font-size: 18px; }
   .estado-p { font-size: 13px; margin-top: 8px; overflow-wrap: anywhere; }
   .estado-p.erro { color: #ff9a9a; } .estado-p.ok { color: var(--verde); } .estado-p.vai { color: var(--amarelo); }
+  /* Menu (27/10): o icone do VyraTube abre a lista das telas */
+  .menu-btn { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 4px; min-height: 0; background: transparent; border-color: var(--borda); }
+  .menu-btn img { width: 32px; height: 32px; border-radius: 8px; }
+  .menu-btn span { font-size: 12px; color: var(--fraco); }
+  .menu-btn[aria-expanded="true"] { border-color: var(--laranja); }
+  .menu-btn[aria-expanded="true"] span { color: var(--laranja); }
+  nav.menu { position: absolute; left: 0; right: 0; top: 100%; background: var(--cartao); border: 1px solid var(--borda); border-radius: 14px; padding: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.6); display: grid; gap: 2px; }
+  nav.menu[hidden] { display: none; }
+  nav.menu button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; border-color: transparent; font-size: 15px; padding: 11px 12px; }
+  nav.menu button[hidden] { display: none; }
+  nav.menu button .nm { flex: 1; }
+  nav.menu button.on { background: rgba(255,122,26,.12); color: var(--laranja); }
+  nav.menu .sinal { font-size: 12px; padding: 1px 8px; border-radius: 10px; background: #26262c; color: var(--fraco); }
+  nav.menu .sinal.ruim { background: rgba(224,72,72,.2); color: #ff8a8a; }
+  nav.menu .sinal:empty { display: none; }
+  .tela-nome { font-size: 12px; color: var(--laranja); }
+  .fora-tela { display: none !important; }
+  /* Contas (27/10) */
+  .conta { border-top: 1px solid var(--borda); padding: 12px 0 4px; }
+  .conta:first-child { border-top: 0; padding-top: 2px; }
+  .conta .l1 { display: flex; align-items: center; gap: 8px; }
+  .conta .nm { flex: 1; font-weight: 600; }
+  .conta .em { font-size: 12px; color: var(--fraco); }
+  .conta .st { font-size: 13px; margin-top: 4px; }
+  .conta .st.ruim { color: #ff9a9a; } .conta .st.meio { color: var(--amarelo); } .conta .st.bom { color: var(--verde); }
+  .conta img.foto { width: 100%; border-radius: 10px; border: 1px solid var(--borda); margin-top: 8px; display: block; }
+  .grupo-c { font-size: 12px; color: var(--fraco); text-transform: uppercase; letter-spacing: .04em; margin: 14px 0 2px; }
+  .grupo-c:first-child { margin-top: 0; }
 </style>
 </head>
 <body>
 <header>
-  <img src="icone-256.png" alt="">
-  <div class="t"><b>VyraTube</b><div class="pc" id="pc">conectando...</div></div>
+  <!-- 27/10 (pedido dela): o icone do VyraTube abre o menu das telas -->
+  <button class="menu-btn" id="btnMenu" aria-expanded="false" aria-controls="menu"><img src="icone-256.png" alt=""><span>Menu ▾</span></button>
+  <div class="t"><b>VyraTube</b> <span class="tela-nome" id="telaNome"></span><div class="pc" id="pc">conectando...</div></div>
+  <nav class="menu" id="menu" hidden>
+    <button data-tela-ir="piloto"><span>⚡</span><span class="nm">Piloto Automático</span><span class="sinal" id="sinalPiloto"></span></button>
+    <button data-tela-ir="postar"><span>📅</span><span class="nm">Postar</span><span class="sinal" id="sinalPostar"></span></button>
+    <button data-tela-ir="crescer" id="menuCrescer"><span>🚀</span><span class="nm">Crescer canal</span></button>
+    <button data-tela-ir="contas"><span>👤</span><span class="nm">Contas</span><span class="sinal" id="sinalContas"></span></button>
+    <button data-tela-ir="computador"><span>🖥</span><span class="nm">Computador</span></button>
+  </nav>
 </header>
 
 <div id="semVinculo" class="cartao vazio" hidden>
@@ -154,13 +190,13 @@
 
   <!-- A fila fica em cima do andamento (pedido dela, 25/10). Cada cartao recolhe
        pela setinha do titulo (o celular lembra o que ficou fechado). -->
-  <details class="cartao dobra" id="cartaoFila" data-dobra="fila" open hidden>
+  <details class="cartao dobra" id="cartaoFila" data-dobra="fila" data-tela="piloto" open hidden>
     <summary><h2>📋 Fila de títulos <span class="etiq" id="filaEstado"></span></h2></summary>
     <ol class="fila" id="fila"></ol>
     <div class="botoes" id="botoesFila"></div>
   </details>
 
-  <details class="cartao dobra" id="andamento" data-dobra="andamento" open>
+  <details class="cartao dobra" id="andamento" data-dobra="andamento" data-tela="piloto" open>
     <summary><h2>⚙ Andamento <span class="etiq" id="estadoGeral"></span></h2></summary>
     <div class="titulo-v" id="titulo"></div>
     <div class="canal-atual" id="canalAtual" hidden></div>
@@ -171,30 +207,39 @@
   </details>
 
   <!-- 25/10: videos prontos -> escolher a capa, ver a previa e programar -->
-  <details class="cartao dobra" id="cartaoPostar" data-dobra="postar" open hidden>
+  <details class="cartao dobra" id="cartaoPostar" data-dobra="postar" data-tela="postar" open hidden>
     <summary><h2>📅 Postar <span class="etiq" id="postarEstado"></span></h2></summary>
     <p class="dica">Escolha a capa, confira a prévia, o canal, a data e a hora, e programe. O vídeo sobe agora e fica <b>programado</b> (não vai ao ar na hora).</p>
     <div id="postarLista"></div>
   </details>
 
   <!-- 26/10 (pedido dela): o Crescer canal no celular - gerar titulos novos e mandar para a fila -->
-  <details class="cartao dobra" id="cartaoCrescer" data-dobra="crescer" open hidden>
+  <details class="cartao dobra" id="cartaoCrescer" data-dobra="crescer" data-tela="crescer" open hidden>
     <summary><h2>🚀 Crescer canal</h2></summary>
     <p class="dica">O mesmo "✨ Gerar mais 10 títulos" do fim da tela Crescer canal do computador: as mesmas listas (Títulos novos e anteriores) aparecem aqui e lá.</p>
     <div id="crescerCorpo"></div>
   </details>
 
-  <details class="cartao dobra" data-dobra="registro">
+  <!-- 27/10 (pedido dela): as contas de IA e do Flow, para resolver pelo celular -->
+  <div class="cartao" id="cartaoContas" data-tela="contas">
+    <h2>👤 Contas</h2>
+    <p class="dica">Conta travada ou estranha? Veja a tela dela (📷), recarregue a página ou reinicie o Chrome dela. <b>Entrar na conta de novo</b> (login) só pelo computador.</p>
+    <div id="contasLista"></div>
+  </div>
+
+  <details class="cartao dobra" data-dobra="registro" data-tela="piloto computador">
     <summary><h2>📝 O que aconteceu (registro)</h2></summary>
     <div class="log" id="log"></div>
   </details>
 
   <!-- 26/10 (pedido dela): reiniciar o programa no PC pelo celular -->
-  <details class="cartao dobra" data-dobra="computador">
+  <details class="cartao dobra" data-dobra="computador" data-tela="computador" open>
     <summary><h2>🖥 Computador</h2></summary>
     <p class="dica">Se o programa travou ou está estranho, reinicie por aqui. Ele fecha e abre de novo sozinho no PC (cerca de 1 minuto). Com a fila ligada, o Piloto continua sozinho; sem fila, toque em "Continuar de onde parou" depois.</p>
     <div class="botoes"><button class="vermelho" data-acao="reiniciar" data-pergunta="Reiniciar o VyraTube no computador?&#10;&#10;O programa fecha e abre de novo sozinho (cerca de 1 minuto). A etapa que estiver rodando é interrompida e volta como &quot;cancelada&quot;.">↻ Reiniciar o programa</button></div>
   </details>
+
+  <div class="cartao vazio dica" id="telaVazia" hidden></div>
 </div>
 
 <div id="toast"></div>
@@ -434,7 +479,99 @@
     }
     pintarPostar(r);
     pintarCrescer(e);
+    pintarContas(r);
+    el('menuCrescer').hidden = !e.crescer;
+    el('sinalPiloto').textContent = e.precisa ? '🙋' : e.erro && !e.rodando ? 'erro' : e.rodando ? Math.round(feito) + '%' : '';
+    el('sinalPiloto').className = 'sinal' + ((e.precisa || (e.erro && !e.rodando)) ? ' ruim' : '');
+    const nPostar = (e.postar || []).length;
+    el('sinalPostar').textContent = nPostar ? String(nPostar) : '';
+    aplicarTela();
   }
+
+  /* ---------------- menu das telas (27/10, pedido dela) ----------------
+     O icone do VyraTube abre a lista; cada tela mostra so os cartoes dela
+     (data-tela). O "Precisa de voce" aparece em todas. */
+  const TELAS = { piloto: '⚡ Piloto', postar: '📅 Postar', crescer: '🚀 Crescer canal', contas: '👤 Contas', computador: '🖥 Computador' };
+  let tela = 'piloto';
+  try { if (TELAS[localStorage.getItem('vyra_cel_tela')]) tela = localStorage.getItem('vyra_cel_tela'); } catch (e) { /* sem */ }
+  const VAZIA = { piloto: 'O Piloto não está fazendo nenhum vídeo agora.', postar: 'Nenhum vídeo pronto para postar agora.', crescer: 'O Crescer canal não está no seu pacote.', contas: 'Nenhuma conta conectada no computador.', computador: '' };
+  function aplicarTela() {
+    if (tela === 'crescer' && el('menuCrescer').hidden) tela = 'piloto';
+    let algum = false;
+    for (const c of document.querySelectorAll('#tudo [data-tela]')) {
+      const aqui = c.dataset.tela.split(' ').includes(tela);
+      c.classList.toggle('fora-tela', !aqui);
+      if (aqui && !c.hidden) algum = true;
+    }
+    el('telaVazia').hidden = algum || !VAZIA[tela];
+    el('telaVazia').textContent = VAZIA[tela] || '';
+    el('telaNome').textContent = '· ' + TELAS[tela];
+    for (const b of document.querySelectorAll('[data-tela-ir]')) b.classList.toggle('on', b.dataset.telaIr === tela);
+  }
+  function abrirMenu(abrir) {
+    el('menu').hidden = !abrir;
+    el('btnMenu').setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  }
+  el('btnMenu').addEventListener('click', (ev) => { ev.stopPropagation(); abrirMenu(el('menu').hidden); });
+  el('menu').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-tela-ir]');
+    if (!b) return;
+    tela = b.dataset.telaIr;
+    try { localStorage.setItem('vyra_cel_tela', tela); } catch (e) { /* sem */ }
+    abrirMenu(false);
+    aplicarTela();
+    window.scrollTo(0, 0);
+  });
+  document.addEventListener('click', (ev) => { if (!el('menu').hidden && !ev.target.closest('header')) abrirMenu(false); });
+  aplicarTela();
+
+  /* ---------------- contas (27/10, pedido dela) ----------------
+     As contas de IA e do Flow que o computador tem conectadas. Os botoes vao
+     como refazer + 'conta|<acao>|<id>'. */
+  const verFoto = {};   // id -> foto aberta
+  async function pintarContas(r) {
+    const lista = (r.estado && r.estado.contas) || [];
+    const ruins = lista.filter((c) => !c.conectada || c.deFora).length;
+    el('sinalContas').textContent = ruins ? '⚠ ' + ruins : lista.length ? String(lista.length) : '';
+    el('sinalContas').className = 'sinal' + (ruins ? ' ruim' : '');
+    const fotos = lista.filter((c) => c.foto && verFoto[c.id]).map((c) => c.foto.arq);
+    const url = fotos.length ? await assinar(r.pasta, fotos) : () => '';
+    const hhmm = (t) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const bt = (acao, id, txt, pergunta, cls) => '<button class="peq' + (cls ? ' ' + cls : '') + '" data-acao="refazer" data-etapa="conta|' + acao + '|' + esc(id) + '"' + (pergunta ? ' data-pergunta="' + esc(pergunta) + '"' : '') + '>' + txt + '</button>';
+    let html = '', grupo = '';
+    for (const c of lista) {
+      const g = c.tipo === 'flow' ? 'Google Flow (imagens)' : 'IA de texto (ChatGPT / Gemini)';
+      if (g !== grupo) { html += '<div class="grupo-c">' + g + '</div>'; grupo = g; }
+      let st, cls;
+      if (!c.conectada) { st = '🔴 Saiu da conta. Entre de novo pelo computador (Contas → Conectar).'; cls = 'ruim'; }
+      else if (c.deFora) { st = '🟡 Não estava respondendo: fica fora dos pedidos por mais ' + c.deFora + ' min.'; cls = 'meio'; }
+      else if (c.modo === 'pronto') { st = c.ocupada ? '🟢 No ar, respondendo agora' : '🟢 No ar'; cls = 'bom'; }
+      else if (c.modo === 'abrindo') { st = '⏳ Abrindo...'; cls = 'meio'; }
+      else { st = '⚪ Fechada (abre sozinha quando precisar)'; cls = ''; }
+      const extra = c.tipo === 'ia' ? (c.principal ? ' · ◉ principal' : c.emUso ? ' · ✔ em uso' : ' · ✖ não usar')
+        : ' · gera ' + ({ imagem: 'imagens', video: 'vídeos', ambos: 'imagens e vídeos' }[c.gera] || 'imagens');
+      const nome = esc(c.nome);
+      let botoes = bt('foto', c.id, '📷 Ver a tela agora') +
+        bt('recarregar', c.id, '↻ Recarregar a página', 'Recarregar a página do ' + c.nome + '?' + (c.ocupada ? '\n\nEla está respondendo agora: a resposta se perde e o pedido vai para outra conta.' : '')) +
+        bt('reiniciar', c.id, '⟲ Reiniciar o Chrome', 'Fechar e abrir de novo o Chrome do ' + c.nome + '?\n\nO login continua. Se ela estiver no meio de um pedido, ele vai para outra conta.', 'vermelho');
+      if (c.tipo === 'ia') {
+        if (c.deFora) botoes += bt('voltar', c.id, '✓ Voltar a usar agora', '', 'laranja');
+        if (!c.principal) botoes += c.emUso ? bt('naousar', c.id, '✖ Não usar', 'Deixar o ' + c.nome + ' fora dos pedidos até você marcar de novo?') : bt('usar', c.id, '✔ Usar');
+      }
+      const foto = c.foto && verFoto[c.id] && url(c.foto.arq)
+        ? '<img class="foto" src="' + esc(url(c.foto.arq) + '&v=' + c.foto.quando) + '" alt="Tela do ' + nome + '"><div class="dica">Foto de ' + hhmm(c.foto.quando) + '. <button class="peq" data-fechar-foto="' + esc(c.id) + '">Fechar a foto</button></div>' : '';
+      html += '<div class="conta" data-conta="' + esc(c.id) + '"><div class="l1"><span class="nm">' + nome + '</span><span class="em">' + esc(c.email) + '</span></div>' +
+        '<div class="st ' + cls + '">' + st + '<span class="dica">' + extra + '</span></div>' +
+        '<div class="botoes">' + botoes + '</div>' + foto + '</div>';
+    }
+    pintarSe(el('contasLista'), html || '<div class="dica">Nenhuma conta conectada no computador.</div>');
+  }
+  el('contasLista').addEventListener('click', (ev) => {
+    const f = ev.target.closest('[data-fechar-foto]');
+    if (f) { delete verFoto[f.dataset.fecharFoto]; ler(); return; }
+    const b = ev.target.closest('[data-etapa^="conta|foto|"]');
+    if (b) { verFoto[b.dataset.etapa.split('|')[2]] = true; toast('Tirando a foto da tela... aparece aqui em alguns segundos.'); }
+  });
 
   /* ---------------- setinha para recolher (25/10) ---------------- */
   let fechados = {};
